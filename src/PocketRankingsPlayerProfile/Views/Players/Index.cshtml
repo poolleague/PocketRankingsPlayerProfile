@@ -1,0 +1,18 @@
+@model PlayerDirectoryViewModel
+@{ ViewData["Title"] = "Community players"; }
+<section class="hero directory-hero">
+    <div><p class="eyebrow">COMMUNITY PLAYER PROFILES</p><h1>Every table has a story.</h1><p>Celebrate local competitors, league regulars, volunteers, and weekend tournament players—with clear labels showing where every result came from.</p></div>
+</section>
+<section class="content-section">
+    <div class="section-heading"><div><p class="eyebrow">PLAYER DIRECTORY</p><h2>Meet the community</h2></div><span class="count">@Model.Profiles.Count published</span></div>
+    <div class="player-grid">
+        @foreach (var profile in Model.Profiles)
+        {
+            <article class="player-card">
+                <div class="avatar" aria-hidden="true">@profile.DisplayName[0]</div>
+                <div><p class="tag">@profile.PrimaryDiscipline</p><h3><a href="/players/@profile.Slug">@profile.DisplayName</a></h3><p>@profile.Headline</p><p class="muted">@profile.Locality, @profile.Region · @profile.HomeRoom</p></div>
+                <a class="card-link" href="/players/@profile.Slug">View profile <span aria-hidden="true">→</span></a>
+            </article>
+        }
+    </div>
+</section>

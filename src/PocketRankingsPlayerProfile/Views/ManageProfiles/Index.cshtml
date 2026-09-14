@@ -1,0 +1,7 @@
+@model IReadOnlyList<PlayerProfile>
+@{ ViewData["Title"] = "Manage profiles"; }
+<section class="page-heading"><p class="eyebrow">PROFILE MANAGEMENT</p><h1>Player profiles</h1><p>Update biographies and informal accomplishments without changing verified source records.</p></section>
+<section class="content-section">
+    @if (User.IsInRole("Owner") || User.IsInRole("ProfileAdmin")) { <section class="panel"><h2>Create a draft profile</h2><form asp-action="Create" method="post" class="form-grid"><label>Display name<input name="DisplayName" required maxlength="80" /></label><label>Profile URL name<input name="Slug" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="avery-brooks" /></label><label>Primary game<input name="PrimaryDiscipline" value="8-ball" required /></label><div><button class="button">Create draft</button></div></form></section> }
+    <div class="manage-list">@foreach (var profile in Model) { <a class="manage-row" asp-action="Details" asp-route-id="@profile.Id"><span><strong>@profile.DisplayName</strong><small>@profile.Headline</small></span><span class="status @profile.Status.ToString().ToLowerInvariant()">@profile.Status</span></a> }</div>
+</section>

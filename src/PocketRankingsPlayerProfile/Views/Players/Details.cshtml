@@ -1,0 +1,35 @@
+@model PlayerProfileViewModel
+@{ ViewData["Title"] = Model.Profile.DisplayName; var p = Model.Profile; var s = Model.Statistics; }
+<section class="profile-hero">
+    <div class="avatar large" aria-hidden="true">@p.DisplayName[0]</div>
+    <div><p class="eyebrow">COMMUNITY PLAYER</p><h1>@p.DisplayName</h1><p class="lead">@p.Headline</p><p class="muted">@p.Locality, @p.Region · @p.HomeRoom</p></div>
+    <div class="identity-card"><span>Profile ID</span><code>@p.PublicId</code><small>Future verified links use this durable identity—not a name match.</small></div>
+</section>
+<section class="stats-strip" aria-label="Verified statistics">
+    <div><strong>@s.EventsPlayed</strong><span>Verified events</span></div><div><strong>@s.EventWins</strong><span>Event wins</span></div><div><strong>@s.PodiumFinishes</strong><span>Podiums</span></div><div><strong>@s.MatchWinPercentage%</strong><span>Match win rate</span></div>
+</section>
+<div class="profile-layout">
+    <div>
+        <section class="panel"><p class="eyebrow">ABOUT</p><h2>Around the room</h2><p class="prose">@p.Biography</p></section>
+        <section class="panel"><div class="section-heading"><div><p class="eyebrow">ACCOLADES</p><h2>Achievements</h2></div></div>
+            @if (p.Achievements.Count == 0) { <p class="empty">No achievements have been added yet.</p> }
+            @foreach (var item in p.Achievements.OrderByDescending(x => x.AchievedOn)) { <article class="timeline-item"><div><span class="source @item.Source.ToString().ToLowerInvariant()">@SourceName(item.Source)</span><h3>@item.Title</h3><p>@item.Description</p><small>@item.SourceLabel · @item.AchievedOn.ToString("MMMM yyyy")</small></div></article> }
+        </section>
+        <section class="panel"><p class="eyebrow">VERIFIED PLAY</p><h2>Recent results</h2>
+            @if (p.Results.Count(x => x.RetractedAt is null) == 0) { <p class="empty">Verified League and Tournament results will appear here after a source link is approved.</p> }
+            @foreach (var result in p.Results.Where(x => x.RetractedAt is null).OrderByDescending(x => x.PlayedOn)) { <article class="result"><div><span class="source verified">@result.Product verified</span><h3>@result.EventName</h3><small>@result.Discipline · @result.PlayedOn.ToString("MMM d, yyyy")</small></div><div class="placing"><strong>#@result.Placement</strong><span>of @result.FieldSize</span></div></article> }
+        </section>
+    </div>
+    <aside>
+        <section class="panel"><p class="eyebrow">CONNECTED PLAY</p><h2>Verified sources</h2>
+            @foreach (var link in p.SourceLinks.Where(x => x.Status == SourceLinkStatus.Verified)) { <div class="source-row"><span class="source verified">@link.Product</span><span>@link.DisplayLabel</span></div> }
+            @if (!p.SourceLinks.Any(x => x.Status == SourceLinkStatus.Verified)) { <p class="empty">No verified sources yet.</p> }
+        </section>
+        <section class="panel social-panel"><p class="eyebrow">FOLLOW ALONG</p><h2>Public social pages</h2>
+            @if (p.SocialLinks.Count == 0) { <p class="empty">This player has not shared a public Facebook Page or X profile.</p> }
+            @foreach (var link in p.SocialLinks) { <a class="button secondary" href="@link.PublicUrl" target="_blank" rel="noopener noreferrer">Open @link.Provider</a> @if (link.EmbedEnabled) { <button class="button embed-button" data-provider="@link.Provider.ToString().ToLowerInvariant()" data-url="@link.PublicUrl">Load public @link.Provider feed</button><div class="embed-target"></div> } }
+            <small class="privacy-note">Feeds load only after you choose. The provider may then receive browser and page information.</small>
+        </section>
+    </aside>
+</div>
+@functions { static string SourceName(AchievementSource source) => source switch { AchievementSource.LeagueVerified => "League verified", AchievementSource.TournamentVerified => "Tournament verified", AchievementSource.CommunityEndorsed => "Community endorsed", _ => "Player reported" }; }

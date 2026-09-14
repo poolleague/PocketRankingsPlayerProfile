@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - Pocket Rankings Player Profile</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+        <a class="brand" asp-controller="Players" asp-action="Index" aria-label="Pocket Rankings Player Profile home">
+            <span class="brand-mark" aria-hidden="true">PR</span>
+            <span><strong>Pocket Rankings</strong><small>Player Profile</small></span>
+        </a>
+        <nav aria-label="Primary">
+            <a asp-controller="Players" asp-action="Index">Players</a>
+            <a asp-controller="Home" asp-action="About">About</a>
+            <a asp-controller="Home" asp-action="Help">Help</a>
+            @if (User.Identity?.IsAuthenticated == true) { <a href="/manage/profiles">Manage</a> }
+        </nav>
+        <div class="account">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <span>@User.Identity.Name</span>
+                <form asp-controller="DevelopmentAccess" asp-action="SignOutCurrent" method="post"><button class="link-button">Sign out</button></form>
+            }
+            else { <a href="/development/access">Sign in</a> }
+        </div>
+    </header>
+    <main id="main">@RenderBody()</main>
+    <footer><span>Built for local pool communities.</span><a asp-controller="Home" asp-action="Privacy">Privacy</a></footer>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
