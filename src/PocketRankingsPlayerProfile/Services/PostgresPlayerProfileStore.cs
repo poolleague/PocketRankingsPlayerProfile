@@ -5,7 +5,7 @@ using PocketRankingsPlayerProfile.Models;
 namespace PocketRankingsPlayerProfile.Services;
 
 // Persists the profile-owned read model without reaching into League, Tournament, or Account databases.
-public sealed class PostgresPlayerProfileStore(NpgsqlDataSource dataSource) : IPlayerProfileStore
+public sealed class PostgresPlayerProfileStore(NpgsqlDataSource dataSource, PrivacySuppressionHasher suppressionHasher) : IPlayerProfileStore
 {
     // Filters publication in SQL so an accidental view change cannot expose non-public profiles.
     public async Task<IReadOnlyList<PlayerProfile>> ListPublishedAsync(CancellationToken cancellationToken) =>
@@ -107,6 +107,16 @@ public sealed class PostgresPlayerProfileStore(NpgsqlDataSource dataSource) : IP
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (projectionEvent.PersonId is Guid personId)
+        {
+            await using var suppressed = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM profile.privacy_suppressions WHERE suppression_hash=@hash)", connection, transaction);
+            suppressed.Parameters.AddWithValue("hash", suppressionHasher.Hash(personId));
+            if ((bool)(await suppressed.ExecuteScalarAsync(cancellationToken) ?? false))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new(false, false, "suppressed_privacy", null);
+            }
+        }
         Guid? profileId = null;
         await using (var match = new NpgsqlCommand("SELECT p.profile_id FROM profile.player_profiles p WHERE (@person IS NOT NULL AND p.person_id=@person) OR EXISTS (SELECT 1 FROM profile.profile_source_links l WHERE l.profile_id=p.profile_id AND l.link_status='verified' AND l.source_product=@product AND l.tenant_key=@tenant AND l.source_entity_id=@source) LIMIT 1", connection, transaction))
         { match.Parameters.AddWithValue("person", (object?)projectionEvent.PersonId ?? DBNull.Value); match.Parameters.AddWithValue("product", ToDb(projectionEvent.Product)); match.Parameters.AddWithValue("tenant", projectionEvent.TenantKey); match.Parameters.AddWithValue("source", projectionEvent.SourceEntityId); profileId = (Guid?)await match.ExecuteScalarAsync(cancellationToken); }
@@ -117,6 +127,69 @@ public sealed class PostgresPlayerProfileStore(NpgsqlDataSource dataSource) : IP
         var inserted = await inbox.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return inserted == 0 ? new(false, true, "duplicate", null) : new(false, false, profileId is null ? outcome : "accepted_for_projection", profileId);
+    }
+
+    // Removes all profile-owned personal data transactionally, leaving only keyed suppression and receipt evidence.
+    public async Task<PlayerDataErasureResult> ErasePlayerDataAsync(PlayerDataErasureDirective directive, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var allowAuditRemoval = new NpgsqlCommand("SELECT set_config('pocketrankings.privacy_erasure','on',true)", connection, transaction))
+            await allowAuditRemoval.ExecuteNonQueryAsync(cancellationToken);
+        await using (var duplicate = new NpgsqlCommand("SELECT profiles_deleted FROM profile.privacy_erasure_receipts WHERE request_id=@request", connection, transaction))
+        {
+            duplicate.Parameters.AddWithValue("request", directive.RequestId);
+            if (await duplicate.ExecuteScalarAsync(cancellationToken) is int priorCount)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new(directive.RequestId, true, true, priorCount);
+            }
+        }
+
+        var profileIds = new List<Guid>();
+        await using (var find = new NpgsqlCommand("SELECT profile_id FROM profile.player_profiles WHERE person_id=@person FOR UPDATE", connection, transaction))
+        {
+            find.Parameters.AddWithValue("person", directive.PersonId);
+            await using var reader = await find.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) profileIds.Add(reader.GetGuid(0));
+        }
+
+        // Clears inbox identity and payload before profile deletion so its foreign key cannot retain or block erasure.
+        await using (var clearInbox = new NpgsqlCommand("UPDATE profile.integration_inbox SET person_id=NULL, profile_id=NULL, payload='{}'::jsonb, processing_status='rejected', processing_reason='Removed by irreversible privacy request' WHERE person_id=@person OR profile_id = ANY(@profiles)", connection, transaction))
+        {
+            clearInbox.Parameters.AddWithValue("person", directive.PersonId);
+            clearInbox.Parameters.AddWithValue("profiles", profileIds.ToArray());
+            await clearInbox.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        foreach (var profileId in profileIds)
+        {
+            foreach (var table in new[] { "player_social_links", "player_results", "player_achievements", "profile_source_links", "profile_status_history", "profile_audit_log" })
+            {
+                await using var deleteChild = new NpgsqlCommand($"DELETE FROM profile.{table} WHERE profile_id=@profile", connection, transaction);
+                deleteChild.Parameters.AddWithValue("profile", profileId);
+                await deleteChild.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await using var deleteProfile = new NpgsqlCommand("DELETE FROM profile.player_profiles WHERE profile_id=@profile", connection, transaction);
+            deleteProfile.Parameters.AddWithValue("profile", profileId);
+            await deleteProfile.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var suppression = new NpgsqlCommand("INSERT INTO profile.privacy_suppressions(suppression_hash,first_request_id) VALUES (@hash,@request) ON CONFLICT (suppression_hash) DO NOTHING", connection, transaction))
+        {
+            suppression.Parameters.AddWithValue("hash", suppressionHasher.Hash(directive.PersonId));
+            suppression.Parameters.AddWithValue("request", directive.RequestId);
+            await suppression.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var receipt = new NpgsqlCommand("INSERT INTO profile.privacy_erasure_receipts(request_id,token_id,profiles_deleted) VALUES (@request,@token,@count)", connection, transaction))
+        {
+            receipt.Parameters.AddWithValue("request", directive.RequestId);
+            receipt.Parameters.AddWithValue("token", directive.TokenId);
+            receipt.Parameters.AddWithValue("count", profileIds.Count);
+            await receipt.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return new(directive.RequestId, true, false, profileIds.Count);
     }
 
     // Reads append-only audit history newest first for management review.
@@ -179,8 +252,10 @@ public sealed class PostgresSchemaInitializer(NpgsqlDataSource dataSource, IWebH
     // Reads the deployed migration artifact so the running image and repository share one source of truth.
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        var path = Path.Combine(environment.ContentRootPath, "Database", "001_initial_schema.sql");
-        await using var command = dataSource.CreateCommand(await File.ReadAllTextAsync(path, cancellationToken));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        foreach (var path in Directory.GetFiles(Path.Combine(environment.ContentRootPath, "Database"), "*.sql").OrderBy(path => path, StringComparer.Ordinal))
+        {
+            await using var command = dataSource.CreateCommand(await File.ReadAllTextAsync(path, cancellationToken));
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 }
