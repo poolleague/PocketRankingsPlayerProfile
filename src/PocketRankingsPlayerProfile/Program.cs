@@ -17,6 +17,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization(options =>
     options.AddPolicy("ProfileManager", policy => policy.RequireRole("Owner", "ProfileAdmin", "Player")));
 var connectionString = builder.Configuration.GetConnectionString("PlayerProfile");
+var privacyKey = builder.Configuration["Privacy:SuppressionHashKey"];
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(privacyKey))
+    throw new InvalidOperationException("Privacy:SuppressionHashKey is required outside Development.");
+builder.Services.AddSingleton(new PrivacySuppressionHasher(privacyKey ?? "development-only-player-profile-privacy-key"));
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));

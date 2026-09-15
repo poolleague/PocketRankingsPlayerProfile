@@ -1,12 +1,12 @@
 # Current release handoff
 
-Verified date: 2026-09-14
+Verified date: 2026-09-15
 
 ## Repository state
 
 - Product: Pocket Rankings Player Profile only.
-- Working branch: `codex/player-profile-foundation`.
-- Version: `0.1.0-development`.
+- Working branch: `codex/player-data-privacy`.
+- Version: `0.2.0-development`.
 - No Production deployment, DNS record, tag, or GitHub Release exists.
 - League and Tournament repositories were not changed by this phase.
 
@@ -21,10 +21,12 @@ Verified date: 2026-09-14
 - Draft/published/hidden lifecycle with required reasons and append-only audit records.
 - Strict public Facebook/X URL storage and visitor-initiated embed loading.
 - Isolated PostgreSQL schema, Docker network/database/volume, and Development fixtures.
+- Complete Account-directed profile erasure, idempotent non-identifying receipts, and keyed rejection of future data for opted-out people.
 
 ## Intentionally deferred
 
 - Account authentication and the signed verification handshake that assigns `PersonId`.
+- Signed Account erasure delivery, acknowledgement, retries, and operational alerting; the store contract exists but no live receiver is activated.
 - League/Tournament producer changes and live event delivery.
 - A supported handler that converts accepted inbox payloads into result/achievement rows. The inbox currently deduplicates and stages safely.
 - Community endorser workflow, moderation tooling, player photo upload, and owner-provided launch symbol.
@@ -37,7 +39,7 @@ Define and approve signed Account/source verification and event authentication, 
 ## Validation evidence
 
 - Release build: passed with zero warnings.
-- Automated tests: 16 passed, zero failed.
+- Automated tests: 19 passed, zero failed.
 - Known-vulnerability scan: no vulnerable packages reported by configured NuGet sources.
 - Browser smoke: directory, public profile, source provenance, and Development access page rendered successfully.
 - Security response: CSP and `Referrer-Policy: no-referrer` verified locally.

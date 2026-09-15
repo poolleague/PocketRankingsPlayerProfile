@@ -15,6 +15,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__PlayerProfile: Host=player-profile-db;Port=5432;Database=player_profile;Username=player_profile;Password=${PLAYER_PROFILE_POSTGRES_PASSWORD}
+      Privacy__SuppressionHashKey: ${PLAYER_PROFILE_PRIVACY_SUPPRESSION_KEY:?Set PLAYER_PROFILE_PRIVACY_SUPPRESSION_KEY}
     ports: ["127.0.0.1:${PLAYER_PROFILE_HTTP_PORT:-5190}:8080"]
     depends_on: [player-profile-db]
     networks: [player-profile-private]

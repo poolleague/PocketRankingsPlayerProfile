@@ -2,6 +2,14 @@ namespace PocketRankingsPlayerProfile.Tests;
 
 public sealed class SchemaContractTests
 {
+    [Fact]
+    public void PrivacyMigrationStoresNoRawPersonIdentifier()
+    {
+        var sql = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "PocketRankingsPlayerProfile", "Database", "002_player_data_erasure.sql"));
+        Assert.Contains("profile.privacy_suppressions", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("person_id", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("append-only", sql, StringComparison.OrdinalIgnoreCase);
+    }
     // Keeps the checked-in migration aligned with identity, replay, and append-only history guarantees.
     [Fact]
     public void InitialSchema_ContainsRequiredProtection()

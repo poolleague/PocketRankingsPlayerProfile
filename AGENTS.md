@@ -16,3 +16,7 @@ This repo inherits every rule in `PLATFORM_AGENTS.md` (`PocketRankingsPlatform` 
 ## Current implementation
 
 The first runtime foundation is implemented. Read `docs/CURRENT_RELEASE_HANDOFF.md` before changing code or proposing deployment.
+
+## Player data privacy
+
+An authenticated Account opt-out must delete the complete profile aggregate, including biography, social links, achievements, statistics/results, source links, lifecycle history, and profile audit tied to that person. Retain only a keyed one-way suppression and a non-identifying request receipt. Future events for the opted-out `PersonId` must be rejected as `suppressed_privacy`; a later opt-in starts from future data only. Live signed Account delivery is not yet activated, so do not claim an Account request completed from this store contract alone.

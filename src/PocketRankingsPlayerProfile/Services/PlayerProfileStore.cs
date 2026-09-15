@@ -15,6 +15,7 @@ public interface IPlayerProfileStore
     Task SetStatusAsync(Guid id, ProfileStatus status, string actor, string reason, CancellationToken cancellationToken);
     Task AddPendingSourceLinkAsync(Guid id, SourceProduct product, string tenantKey, string sourceEntityId, string displayLabel, string actor, CancellationToken cancellationToken);
     Task<ProjectionApplyResult> ApplyProjectionAsync(ProfileProjectionEvent projectionEvent, CancellationToken cancellationToken);
+    Task<PlayerDataErasureResult> ErasePlayerDataAsync(PlayerDataErasureDirective directive, CancellationToken cancellationToken);
     Task<IReadOnlyList<ProfileAuditEntry>> ListAuditAsync(Guid id, CancellationToken cancellationToken);
 }
 
@@ -28,6 +29,9 @@ public sealed class DevelopmentPlayerProfileStore : IPlayerProfileStore
     private readonly Dictionary<Guid, PlayerProfile> profiles;
     private readonly List<ProfileAuditEntry> audit = [];
     private readonly HashSet<Guid> processedEvents = [];
+    private readonly HashSet<Guid> processedErasureRequests = [];
+    private readonly HashSet<string> privacySuppressions = [];
+    private readonly PrivacySuppressionHasher suppressionHasher = new("development-only-player-profile-privacy-key");
 
     public DevelopmentPlayerProfileStore()
     {
@@ -161,11 +165,31 @@ public sealed class DevelopmentPlayerProfileStore : IPlayerProfileStore
         lock (sync)
         {
             if (!processedEvents.Add(projectionEvent.EventId)) return Task.FromResult(new ProjectionApplyResult(false, true, "duplicate", null));
+            if (projectionEvent.PersonId is Guid personId && privacySuppressions.Contains(suppressionHasher.Hash(personId)))
+                return Task.FromResult(new ProjectionApplyResult(false, false, "suppressed_privacy", null));
             var profile = profiles.Values.SingleOrDefault(candidate =>
                 (projectionEvent.PersonId is not null && candidate.PersonId == projectionEvent.PersonId) ||
                 candidate.SourceLinks.Any(link => link.Status == SourceLinkStatus.Verified && link.Product == projectionEvent.Product && link.TenantKey == projectionEvent.TenantKey && link.SourceEntityId == projectionEvent.SourceEntityId));
             if (profile is null) return Task.FromResult(new ProjectionApplyResult(false, false, "staged_unmatched", null));
             return Task.FromResult(new ProjectionApplyResult(false, false, "accepted_for_projection", profile.Id));
+        }
+    }
+
+    // Deletes the complete profile aggregate and keeps only one keyed suppression plus request receipt.
+    public Task<PlayerDataErasureResult> ErasePlayerDataAsync(PlayerDataErasureDirective directive, CancellationToken cancellationToken)
+    {
+        lock (sync)
+        {
+            if (!processedErasureRequests.Add(directive.RequestId))
+                return Task.FromResult(new PlayerDataErasureResult(directive.RequestId, true, true, 0));
+            privacySuppressions.Add(suppressionHasher.Hash(directive.PersonId));
+            var ids = profiles.Values.Where(profile => profile.PersonId == directive.PersonId).Select(profile => profile.Id).ToArray();
+            foreach (var id in ids)
+            {
+                profiles.Remove(id);
+                audit.RemoveAll(entry => entry.ProfileId == id);
+            }
+            return Task.FromResult(new PlayerDataErasureResult(directive.RequestId, true, false, ids.Length));
         }
     }
 
