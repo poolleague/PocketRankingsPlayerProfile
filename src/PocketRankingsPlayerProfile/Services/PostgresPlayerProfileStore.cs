@@ -181,9 +181,10 @@ public sealed class PostgresPlayerProfileStore(NpgsqlDataSource dataSource, Priv
             suppression.Parameters.AddWithValue("request", directive.RequestId);
             await suppression.ExecuteNonQueryAsync(cancellationToken);
         }
-        await using (var receipt = new NpgsqlCommand("INSERT INTO profile.privacy_erasure_receipts(request_id,profiles_deleted) VALUES (@request,@count)", connection, transaction))
+        await using (var receipt = new NpgsqlCommand("INSERT INTO profile.privacy_erasure_receipts(request_id,token_id,profiles_deleted) VALUES (@request,@token,@count)", connection, transaction))
         {
             receipt.Parameters.AddWithValue("request", directive.RequestId);
+            receipt.Parameters.AddWithValue("token", directive.TokenId);
             receipt.Parameters.AddWithValue("count", profileIds.Count);
             await receipt.ExecuteNonQueryAsync(cancellationToken);
         }

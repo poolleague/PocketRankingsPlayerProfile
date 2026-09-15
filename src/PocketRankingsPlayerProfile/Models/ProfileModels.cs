@@ -143,7 +143,7 @@ public sealed record ProfileProjectionEvent(
     string PayloadJson);
 
 // Carries the minimum verified Account instruction needed to erase one player's profile graph.
-public sealed record PlayerDataErasureDirective(Guid RequestId, Guid PersonId, DateTimeOffset RequestedAt);
+public sealed record PlayerDataErasureDirective(Guid RequestId, Guid PersonId, Guid TokenId, DateTimeOffset RequestedAt);
 
 // Returns non-identifying completion evidence while keeping repeated delivery safely idempotent.
 public sealed record PlayerDataErasureResult(Guid RequestId, bool Completed, bool Duplicate, int ProfilesDeleted);

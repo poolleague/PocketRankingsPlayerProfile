@@ -2,7 +2,7 @@ name: validate
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "codex/**"]
 permissions:
   contents: read
 jobs:
@@ -16,4 +16,5 @@ jobs:
       - run: dotnet restore PocketRankingsPlayerProfile.slnx
       - run: dotnet build PocketRankingsPlayerProfile.slnx -c Release --no-restore
       - run: dotnet test PocketRankingsPlayerProfile.slnx -c Release --no-build
-      - run: dotnet list src/PocketRankingsPlayerProfile/PocketRankingsPlayerProfile.csproj package --vulnerable --include-transitive
+      - run: dotnet list PocketRankingsPlayerProfile.slnx package --vulnerable --include-transitive
+      - run: docker compose --env-file .env.example config --quiet

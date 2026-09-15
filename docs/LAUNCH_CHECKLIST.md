@@ -7,8 +7,11 @@
 - [x] Management permissions and append-only history schema
 - [x] Public social URL validation and visitor-initiated loading
 - [x] Isolated PostgreSQL/Docker definitions and CI validation
+- [x] Disabled-by-default signed Account privacy receiver and replay-resistant receipt contract
 - [ ] Owner-provided brand symbol and final trademark review
 - [ ] Account sign-in and verified `PersonId` handshake
+- [ ] Approve exact private receiver destination, Account key distribution/rotation, and explicit receiver activation
+- [ ] Implement and validate Account acknowledgements, retries/dead-letter handling, and operational alerts
 - [ ] Signed League/Tournament event contracts and producers
 - [ ] Supported inbox-to-result/achievement projections
 - [ ] Production privacy/retention/moderation policy approval

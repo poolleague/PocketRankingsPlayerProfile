@@ -9,9 +9,12 @@ CREATE TABLE IF NOT EXISTS profile.privacy_suppressions (
 
 CREATE TABLE IF NOT EXISTS profile.privacy_erasure_receipts (
     request_id uuid PRIMARY KEY,
+    token_id uuid NOT NULL UNIQUE,
     profiles_deleted integer NOT NULL CHECK (profiles_deleted >= 0),
     completed_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE profile.privacy_erasure_receipts ADD COLUMN IF NOT EXISTS token_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_privacy_erasure_receipt_token ON profile.privacy_erasure_receipts(token_id) WHERE token_id IS NOT NULL;
 
 -- The normal audit trigger still rejects changes; only the erasure transaction's local flag permits removal.
 CREATE OR REPLACE FUNCTION profile.reject_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
